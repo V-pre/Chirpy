@@ -18,8 +18,8 @@ func main() {
 
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("app")))))
 	mux.HandleFunc("GET /api/healthz", ready)
-	mux.HandleFunc("GET /api/metrics", getMetrics)
-	mux.HandleFunc("POST /api/reset", resetMetrics)
+	mux.HandleFunc("GET /admin/metrics", getMetrics)
+	mux.HandleFunc("POST /admin/reset", resetMetrics)
 
 	server := http.Server{}
 	server.Addr = ":8080"
@@ -28,9 +28,17 @@ func main() {
 }
 
 func getMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, fmt.Sprintf("Hits: %v", cfg.fileserverHits.Load()))
+	responseHTML := fmt.Sprintf(`
+<html>
+  <body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+  </body>
+</html>
+`, cfg.fileserverHits.Load())
+	io.WriteString(w, responseHTML)
 }
 
 func resetMetrics(w http.ResponseWriter, r *http.Request) {
