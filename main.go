@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,10 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+}
+
+type Chirp struct {
+	Body string `json:"body"`
 }
 
 var cfg apiConfig
@@ -20,11 +25,48 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", ready)
 	mux.HandleFunc("GET /admin/metrics", getMetrics)
 	mux.HandleFunc("POST /admin/reset", resetMetrics)
+	mux.HandleFunc("POST /api/validate_chirp", validate)
 
 	server := http.Server{}
 	server.Addr = ":8080"
 	server.Handler = mux
 	server.ListenAndServe()
+}
+
+func validate(w http.ResponseWriter, r *http.Request) {
+	params := new(Chirp)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	fmt.Println(r.Body)
+	err := decoder.Decode(&params)
+	if err != nil {
+		fmt.Printf("Error decoding parameter from JSON: %s", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `
+		{
+			"error": "Something went wrong"
+		}
+		`)
+		return
+	}
+	if len(params.Body) > 140 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, `
+		{
+			"error": "Chirp is too long"
+		}
+		`)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	io.WriteString(w, `
+	{
+		"valid": true
+	}
+	`)
 }
 
 func getMetrics(w http.ResponseWriter, r *http.Request) {
