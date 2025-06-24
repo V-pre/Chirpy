@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -17,6 +18,8 @@ type Chirp struct {
 }
 
 var cfg apiConfig
+
+var filter []string = []string{"kerfuffle", "sharbert", "fornax"}
 
 func main() {
 	mux := http.NewServeMux()
@@ -33,11 +36,21 @@ func main() {
 	server.ListenAndServe()
 }
 
+func profanityFilter(s string, separator string, filter_words []string) string {
+	words := strings.Split(s, separator)
+	for i, word := range words {
+		for _, bad := range filter_words {
+			if bad == strings.ToLower(word) {
+				words[i] = "****"
+			}
+		}
+	}
+	return strings.Join(words, separator)
+}
+
 func validate(w http.ResponseWriter, r *http.Request) {
 	params := new(Chirp)
 	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	fmt.Println(r.Body)
 	err := decoder.Decode(&params)
 	if err != nil {
 		fmt.Printf("Error decoding parameter from JSON: %s", err)
@@ -60,13 +73,15 @@ func validate(w http.ResponseWriter, r *http.Request) {
 		`)
 		return
 	}
+
+	reply := fmt.Sprintf(`
+	{
+		"cleaned_body": "%s"
+	}
+	`, profanityFilter(params.Body, " ", filter))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, `
-	{
-		"valid": true
-	}
-	`)
+	io.WriteString(w, reply)
 }
 
 func getMetrics(w http.ResponseWriter, r *http.Request) {
